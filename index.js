@@ -54,107 +54,135 @@ function Gas(runner, options) {
 
   // ------------------------------------  Runners -------------------------------------------------
 
-  function catchAndPrintError(fn) => {
+  function catchAndPrintError(fn) {
     return () => {
       try {
         fn(...arguments);
       } catch (err) {
-        console.error('failed in hook:', err);
+        console.error("failed in hook:", err);
       }
-    }
+    };
   }
 
-  runner.on("start", catchAndPrintError(() => {
-    watch.data.initialize(config);
-  }));
+  runner.on(
+    "start",
+    catchAndPrintError(() => {
+      watch.data.initialize(config);
+    })
+  );
 
-  runner.on("suite", catchAndPrintError(suite => {
-    ++indents;
-    log(color("suite", "%s%s"), indent(), suite.title);
-  }));
+  runner.on(
+    "suite",
+    catchAndPrintError(suite => {
+      ++indents;
+      log(color("suite", "%s%s"), indent(), suite.title);
+    })
+  );
 
-  runner.on("suite end", catchAndPrintError(() => {
-    --indents;
-    if (indents === 1) {
+  runner.on(
+    "suite end",
+    catchAndPrintError(() => {
+      --indents;
+      if (indents === 1) {
+        log();
+      }
+    })
+  );
+
+  runner.on(
+    "pending",
+    catchAndPrintError(test => {
+      let fmt = indent() + color("pending", "  - %s");
+      log(fmt, test.title);
+    })
+  );
+
+  runner.on(
+    "test",
+    catchAndPrintError(() => {
+      if (!config.provider) {
+        watch.beforeStartBlock = sync.blockNumber();
+      }
+      watch.data.resetAddressCache();
+    })
+  );
+
+  runner.on(
+    "hook end",
+    catchAndPrintError(hook => {
+      if (hook.title.includes("before each") && !config.provider) {
+        watch.itStartBlock = sync.blockNumber() + 1;
+      }
+    })
+  );
+
+  runner.on(
+    "pass",
+    catchAndPrintError(test => {
+      let fmt;
+      let fmtArgs;
+      let gasUsedString;
+      let consumptionString;
+      let timeSpentString = color(test.speed, "%dms");
+      let gasUsed;
+
+      if (!config.provider) {
+        gasUsed = watch.blocks();
+      }
+
+      if (gasUsed) {
+        gasUsedString = color("checkmark", "%d gas");
+
+        if (config.showTimeSpent) {
+          consumptionString =
+            " (" + timeSpentString + ", " + gasUsedString + ")";
+          fmtArgs = [test.title, test.duration, gasUsed];
+        } else {
+          consumptionString = " (" + gasUsedString + ")";
+          fmtArgs = [test.title, gasUsed];
+        }
+
+        fmt =
+          indent() +
+          color("checkmark", "  " + Base.symbols.ok) +
+          color("pass", " %s") +
+          consumptionString;
+      } else {
+        if (config.showTimeSpent) {
+          consumptionString = " (" + timeSpentString + ")";
+          fmtArgs = [test.title, test.duration];
+        } else {
+          consumptionString = "";
+          fmtArgs = [test.title];
+        }
+
+        fmt =
+          indent() +
+          color("checkmark", "  " + Base.symbols.ok) +
+          color("pass", " %s") +
+          consumptionString;
+      }
+      log.apply(null, [fmt, ...fmtArgs]);
+    })
+  );
+
+  runner.on(
+    "fail",
+    catchAndPrintError(test => {
+      failed = true;
+      let fmt = indent() + color("fail", "  %d) %s");
       log();
-    }
-  }));
+      log(fmt, ++n, test.title);
+    })
+  );
 
-  runner.on("pending", catchAndPrintError(test => {
-    let fmt = indent() + color("pending", "  - %s");
-    log(fmt, test.title);
-  }));
-
-  runner.on("test", catchAndPrintError(() => {
-    if (!config.provider) {
-      watch.beforeStartBlock = sync.blockNumber();
-    }
-    watch.data.resetAddressCache();
-  }));
-
-  runner.on("hook end", catchAndPrintError(hook => {
-    if (hook.title.includes("before each") && !config.provider) {
-      watch.itStartBlock = sync.blockNumber() + 1;
-    }
-  }));
-
-  runner.on("pass", catchAndPrintError(test => {
-    let fmt;
-    let fmtArgs;
-    let gasUsedString;
-    let consumptionString;
-    let timeSpentString = color(test.speed, "%dms");
-    let gasUsed;
-
-    if (!config.provider) {
-      gasUsed = watch.blocks();
-    }
-
-    if (gasUsed) {
-      gasUsedString = color("checkmark", "%d gas");
-
-      if (config.showTimeSpent) {
-        consumptionString = " (" + timeSpentString + ", " + gasUsedString + ")";
-        fmtArgs = [test.title, test.duration, gasUsed];
-      } else {
-        consumptionString = " (" + gasUsedString + ")";
-        fmtArgs = [test.title, gasUsed];
-      }
-
-      fmt =
-        indent() +
-        color("checkmark", "  " + Base.symbols.ok) +
-        color("pass", " %s") +
-        consumptionString;
-    } else {
-      if (config.showTimeSpent) {
-        consumptionString = " (" + timeSpentString + ")";
-        fmtArgs = [test.title, test.duration];
-      } else {
-        consumptionString = "";
-        fmtArgs = [test.title];
-      }
-
-      fmt =
-        indent() +
-        color("checkmark", "  " + Base.symbols.ok) +
-        color("pass", " %s") +
-        consumptionString;
-    }
-    log.apply(null, [fmt, ...fmtArgs]);
-  }));
-
-  runner.on("fail", catchAndPrintError(test => {
-    failed = true;
-    let fmt = indent() + color("fail", "  %d) %s");
-    log();
-    log(fmt, ++n, test.title);
-  }));
-
-  runner.on("end", catchAndPrintError(() => {
-    table.generate(watch.data);
-    self.epilogue();
-  }));
+  runner.on(
+    "end",
+    catchAndPrintError(() => {
+      table.generate(watch.data);
+      self.epilogue();
+    })
+  );
 }
 
 /**
