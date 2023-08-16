@@ -55,9 +55,9 @@ function Gas(runner, options) {
   // ------------------------------------  Runners -------------------------------------------------
 
   function catchAndPrintError(fn) {
-    return () => {
+    return arg => {
       try {
-        fn(...arguments);
+        fn(arg);
       } catch (err) {
         console.error("failed in hook:", err);
       }
