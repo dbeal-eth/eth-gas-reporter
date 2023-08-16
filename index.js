@@ -54,41 +54,51 @@ function Gas(runner, options) {
 
   // ------------------------------------  Runners -------------------------------------------------
 
-  runner.on("start", () => {
-    watch.data.initialize(config);
-  });
+  function catchAndPrintError(fn) => {
+    return () => {
+      try {
+        fn(...arguments);
+      } catch (err) {
+        console.error('failed in hook:', err);
+      }
+    }
+  }
 
-  runner.on("suite", suite => {
+  runner.on("start", catchAndPrintError(() => {
+    watch.data.initialize(config);
+  }));
+
+  runner.on("suite", catchAndPrintError(suite => {
     ++indents;
     log(color("suite", "%s%s"), indent(), suite.title);
-  });
+  }));
 
-  runner.on("suite end", () => {
+  runner.on("suite end", catchAndPrintError(() => {
     --indents;
     if (indents === 1) {
       log();
     }
-  });
+  }));
 
-  runner.on("pending", test => {
+  runner.on("pending", catchAndPrintError(test => {
     let fmt = indent() + color("pending", "  - %s");
     log(fmt, test.title);
-  });
+  }));
 
-  runner.on("test", () => {
+  runner.on("test", catchAndPrintError(() => {
     if (!config.provider) {
       watch.beforeStartBlock = sync.blockNumber();
     }
     watch.data.resetAddressCache();
-  });
+  }));
 
-  runner.on("hook end", hook => {
+  runner.on("hook end", catchAndPrintError(hook => {
     if (hook.title.includes("before each") && !config.provider) {
       watch.itStartBlock = sync.blockNumber() + 1;
     }
-  });
+  }));
 
-  runner.on("pass", test => {
+  runner.on("pass", catchAndPrintError(test => {
     let fmt;
     let fmtArgs;
     let gasUsedString;
@@ -132,19 +142,19 @@ function Gas(runner, options) {
         consumptionString;
     }
     log.apply(null, [fmt, ...fmtArgs]);
-  });
+  }));
 
-  runner.on("fail", test => {
+  runner.on("fail", catchAndPrintError(test => {
     failed = true;
     let fmt = indent() + color("fail", "  %d) %s");
     log();
     log(fmt, ++n, test.title);
-  });
+  }));
 
-  runner.on("end", () => {
+  runner.on("end", catchAndPrintError(() => {
     table.generate(watch.data);
     self.epilogue();
-  });
+  }));
 }
 
 /**
